@@ -1,18 +1,22 @@
 const express = require('express');
-const connectDB = require('./config/db');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const db = require('./config/db'); 
 require('dotenv').config();
 
 const app = express();
 
-
-connectDB();
-
+db.connect((err) => {
+    if (err) {
+        console.error('Error connecting to MySQL:', err.message);
+        process.exit(1);
+    } else {
+        console.log('MySQL connected');
+    }
+});
 
 app.use(bodyParser.json());
-app.use(cors()); 
-
+app.use(cors());
 
 app.use('/api/auth', require('./routes/authRoutes'));
 

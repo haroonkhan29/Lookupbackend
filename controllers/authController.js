@@ -1,97 +1,53 @@
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
-exports.register = async (req, res) => {
+const register = (req, res) => {
     const { name, email, phone, password } = req.body;
-    console.log(req.body);
-    try {
-        let user = await User.findOne({ email });
-        if (user) {
-            return res.status(400).json({ msg: 'User already exists' });
+    const hashedPassword = bcrypt.hashSync(password, 10);
+
+    User.create({ name, email, phone, password: hashedPassword }, (err, userId) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
         }
-        user = new User({
-            name,
-            email,
-            phone,
-            password,
-        });
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
-        await user.save();
-        const payload = {
-            user: {
-                id: user.id,
-            },
-        };
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '5d' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token });
-            }
-        );
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
+        res.status(201).json({ message: 'User registered successfully', userId });
+    });
 };
 
-exports.login = async (req, res) => {
+const login = (req, res) => {
     const { email, password } = req.body;
-    try {
-        let user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ msg: 'Invalid Credentials' });
+
+    User.findByEmail(email, (err, user) => {
+        if (err || !user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ msg: 'Invalid Credentials' });
+
+        const isPasswordValid = bcrypt.compareSync(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
-        const payload = {
-            user: {
-                id: user.id,
-            },
-        };
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '5d' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token });
-            }
-        );
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
+
+        res.status(200).json({ message: 'Login successful', user });
+    });
 };
 
-
-exports.getAllUsers = async (req, res) => {
-    try {
-        const users = await User.find();
-        res.json(users);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
-};
-
-
-exports.getUserByEmail = async (req, res) => {
-    const { email } = req.params;
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ msg: 'User not found' });
+const getAllUsers = (req, res) => {
+    const sql = 'SELECT * FROM users';
+    db.query(sql, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
         }
-        res.json(user);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
+        res.status(200).json(results);
+    });
 };
+
+const getUserByEmail = (req, res) => {
+    const email = req.params.email;
+    User.findByEmail(email, (err, user) => {
+        if (err || !user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.status(200).json(user);
+    });
+};
+
+module.exports = { register, login, getAllUsers, getUserByEmail };
